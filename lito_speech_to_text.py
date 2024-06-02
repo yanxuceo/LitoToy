@@ -4,7 +4,7 @@ from openai import OpenAI
 import os
 import sys
 
-class SpeechToText:
+class LitoSpeechToText:
     def __init__(self, device_index=1, format=pyaudio.paInt16, channels=1, rate=44100, chunk=4096, record_seconds=5, wave_output_filename="output.wav"):
         self.device_index = device_index
         self.format = format
