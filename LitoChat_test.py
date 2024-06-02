@@ -23,12 +23,12 @@ class CustomEventHandler(AssistantEventHandler):
 
     def on_text_created(self, text) -> None:
         print(f"\nassistant(t_c) > ", end="", flush=True)
-        self.response_text = text
+        self.response_text = str(text)
 
     def on_text_delta(self, delta, snapshot):
         # Extract the text content from delta
         print(f"DEBUG: Received delta: {delta}")
-        text = getattr(delta, 'text', None)
+        text = getattr(delta, 'value', None)
         if text:
             print(f"DEBUG: Delta text type: {type(text)}")
             if isinstance(text, str):
@@ -36,6 +36,7 @@ class CustomEventHandler(AssistantEventHandler):
                 print(text, end="", flush=True)
             else:
                 print(f"DEBUG: Non-string delta text: {text}")
+                self.response_text += str(text)
 
     def on_tool_call_created(self, tool_call):
         print(f"\nassistant(t_c_c) > {tool_call.type}\n", flush=True)
@@ -54,16 +55,18 @@ class CustomEventHandler(AssistantEventHandler):
 
 async def text_to_speech(text):
     """Convert text to speech and play the audio."""
+    if not isinstance(text, str):
+        text = str(text)  # Ensure text is converted to a string
+
     voice = "en-GB-SoniaNeural"
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_audio_file:
         output_file = temp_audio_file.name
 
     communicate = edge_tts.Communicate(text, voice)
-    async with communicate.stream() as stream:
-        with open(output_file, "wb") as file:
-            async for chunk in stream:
-                if chunk["type"] == "audio":
-                    file.write(chunk["data"])
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            with open(output_file, "ab") as file:
+                file.write(chunk["data"])
 
     os.system(f"mpg123 {output_file}")
 
@@ -94,6 +97,10 @@ while True:
         event_handler=event_handler,
     ) as stream:
         stream.until_done()
+
+    # Debug output to check the type of response_text
+    print(f"DEBUG: Final response_text type: {type(event_handler.response_text)}")
+    print(f"DEBUG: Final response_text: {event_handler.response_text}")
 
     # Convert the assistant's response to speech
     asyncio.run(text_to_speech(event_handler.response_text))
