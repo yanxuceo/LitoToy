@@ -257,7 +257,7 @@ def ask_chatbot_sync(input_text, loop):
     with client_openai.beta.threads.runs.stream(
         thread_id=thread_id,
         assistant_id=assistant_id,
-        instructions="你扮演一个孩子的小伙伴，名字叫小小新，性格和善，说话活泼可爱，对孩子充满爱心，经常赞赏和鼓励孩子，用5岁孩子容易理解语言提供有趣和创新的回答，不要超过50字。",
+        instructions="你扮演一个孩子的小伙伴，名字叫小小新，性格和善，说话活泼可爱，对孩子充满爱心，经常赞赏和鼓励孩子，用5岁孩子容易理解语言提供有趣和创新的回答，回答不要超过50字。",
         event_handler=event_handler
     ) as stream:
         stream.until_done()

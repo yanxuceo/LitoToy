@@ -9,14 +9,14 @@ openai_api_key = os.getenv('OPENAI_API_KEY')
 client = OpenAI(api_key=openai_api_key)
 
 
-# 1. Create assistant
+# Create assistant
 assistant = client.beta.assistants.create(
-    name="LitoToy",
-    instructions="You play as a friend of a child named Xiao Xiaoxin, who is kind, lively and cute, full of love for children, often praises and encourages children, provides interesting and innovative answers in language that 5-year-old children can understand, and asks her opinions on the topic of the chat each time to stimulate her thinking and curiosity.",
-    model="gpt-4o",
+    name="小小新",
+    instructions="你扮演一个孩子的小伙伴，名字叫小小新，性格温和，说话可爱，对孩子充满爱心，经常赞赏和鼓励孩子，用5岁孩子容易理解语言提供有趣和创新的回答，回答不要超过50字。",
+    model="gpt-3.5-turbo-0125",
 )
 
-# 2. Create thread
+# Create thread
 thread = client.beta.threads.create()
 
 print(assistant)

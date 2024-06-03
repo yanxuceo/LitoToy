@@ -85,7 +85,15 @@ class LitoSpeechToText:
 
 # Usage example:
 if __name__ == "__main__":
-    stt = SpeechToText()
+    stt = LitoSpeechToText()
     stt.list_audio_devices()
-    user_input = stt.get_speech_input()
-    print(f"User input: {user_input}")
+    
+    while True:
+        print("\nListening for user input...")
+        user_input = stt.get_speech_input()
+
+        if not user_input or user_input.lower() in ['exit', 'quit']:
+            print("Exiting the test. Goodbye!")
+            break
+
+        print(f"User input: {user_input}")
