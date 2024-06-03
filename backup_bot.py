@@ -4,6 +4,7 @@ assistant_id = os.getenv('OPENAI_ASSISTANT_ID')
 thread_id = os.getenv('OPENAI_THREAD_ID')
 
 
+import os
 import asyncio
 import re
 import tempfile
@@ -27,7 +28,7 @@ CHUNK = int(RATE / 10)  # 100ms
 openai_api_key = os.getenv('OPENAI_API_KEY')
 client_openai = openai.OpenAI(api_key=openai_api_key)
 
-# Global TTS task reference
+# Global TTS task and interaction task references
 tts_task = None
 interaction_task = None
 
@@ -194,7 +195,7 @@ class CustomEventHandler(openai.AssistantEventHandler):
                         print(f"\n{output.logs}", flush=True)
 
 async def handle_speech():
-    global interaction_task
+    global interaction_task, tts_task
 
     config = speech.RecognitionConfig(
         encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
@@ -217,10 +218,15 @@ async def handle_speech():
                             await interaction_task
                         except asyncio.CancelledError:
                             print("Previous interaction task cancelled")
+                    if tts_task:
+                        tts_task.cancel()
+                        try:
+                            await tts_task
+                        except asyncio.CancelledError:
+                            print("Previous TTS task cancelled")
                     input_text = result.alternatives[0].transcript
                     print(f"Recognized: {input_text}")
                     interaction_task = asyncio.create_task(handle_interaction(input_text))
-                    await interaction_task
 
 async def handle_interaction(input_text):
     response_text = await ask_chatbot(input_text)
@@ -251,7 +257,7 @@ def ask_chatbot_sync(input_text, loop):
     with client_openai.beta.threads.runs.stream(
         thread_id=thread_id,
         assistant_id=assistant_id,
-        instructions="你扮演一个孩子的小伙伴，名叫小小新，性格和善，说话活泼可爱，经常赞赏和鼓励孩子，回答不要超过50字。",
+        instructions="你扮演一个孩子的小伙伴，名字叫小小新，性格和善，说话活泼可爱，对孩子充满爱心，经常赞赏和鼓励孩子，用5岁孩子容易理解语言提供有趣和创新的回答，不要超过50字。",
         event_handler=event_handler
     ) as stream:
         stream.until_done()
