@@ -50,33 +50,42 @@ class MicrophoneStream:
                 return
             yield chunk
 
+
 def main():
     client = speech.SpeechClient(credentials=credentials)
     config = speech.RecognitionConfig(
         encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
         sample_rate_hertz=RATE,
-        language_code='en-US'
+        language_code='en-US',
+        model='command_and_search',
     )
     streaming_config = speech.StreamingRecognitionConfig(config=config, interim_results=True)
 
-    while True:
-        print("Say something:")
-        with MicrophoneStream(RATE, CHUNK) as stream:
-            audio_generator = stream.generator()
-            requests = (speech.StreamingRecognizeRequest(audio_content=content) for content in audio_generator)
-            responses = client.streaming_recognize(streaming_config, requests)
+    try:
+        while True:
+            print("Say something:")
+            with MicrophoneStream(RATE, CHUNK) as stream:
+                audio_generator = stream.generator()
+                requests = (speech.StreamingRecognizeRequest(audio_content=content) for content in audio_generator)
+                responses = client.streaming_recognize(streaming_config, requests)
 
-            for response in responses:
-                for result in response.results:
-                    if result.is_final:
-                        print(f"Final Transcript: {result.alternatives[0].transcript}")
-                        print("End of utterance.")
-                        break
+                for response in responses:
+                    for result in response.results:
+                        if result.is_final:
+                            print(f"Final Transcript: {result.alternatives[0].transcript}")
+                            print("End of utterance. Say something again or say 'exit' to stop.")
+                            # Break out of the inner loop to restart streaming
+                            break
 
+                # Check if the last transcript was 'exit', if so, break the outer loop
+                if result.is_final and result.alternatives[0].transcript.lower().strip() == 'exit':
+                    print("Exiting loop.")
+                    break
 
-if __name__ == "__main__":
-    main()
-
+    except KeyboardInterrupt:
+        print("Interrupted by user, exiting...")
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 
 
