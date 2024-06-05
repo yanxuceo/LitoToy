@@ -4,20 +4,23 @@ import re
 import tempfile
 import queue
 import threading
+
+import openai
+
+import edge_tts
 import pyaudio
+import simpleaudio as sa
+from pydub import AudioSegment
+
+# Google Speech-to-text dependencies
 from google.cloud import speech
 from google.oauth2 import service_account
-import openai
-import edge_tts
-
-from pydub import AudioSegment
-import simpleaudio as sa
 
 # Google Cloud Speech setup
 credentials = service_account.Credentials.from_service_account_file('google_speech_config.json')
 client_speech = speech.SpeechClient(credentials=credentials)
 
-# Assistant ID && Thread ID
+# OpenAI Assistants ID & thread ID
 assistant_id = os.getenv('OPENAI_ASSISTANT_ID')
 thread_id = os.getenv('OPENAI_THREAD_ID')
 
@@ -110,7 +113,6 @@ def play_audio(audio_data):
             pass
 
         play_obj.stop()
-        stop_playback_event.set()
 
 
 async def text_to_speech(text):
@@ -172,6 +174,7 @@ async def text_to_speech(text):
     tts_task = asyncio.create_task(tts_task_fn(text))
     await tts_task
 
+
 class CustomEventHandler(openai.AssistantEventHandler):
     def __init__(self, loop):
         super().__init__()
@@ -203,7 +206,6 @@ class CustomEventHandler(openai.AssistantEventHandler):
             self.responses.put(text)
             self.response_text += text
             self.accumulated_text += text
-            # 直接将完整的响应文本放入 TTS 队列
             asyncio.run_coroutine_threadsafe(self.tts_queue.put(self.accumulated_text), self.loop)
             self.accumulated_text = ""
 
@@ -221,7 +223,7 @@ class CustomEventHandler(openai.AssistantEventHandler):
                     self.response_text += text
                     self.accumulated_text += text
                     print(text, end="", flush=True)
-                    # 在句子结束标点时，将累积的文本放入队列
+                    # when text chunks ends with specified punctuation, mark it as a "complete" sentence to audio playback
                     if self.sentence_end_pattern.search(text):
                         asyncio.run_coroutine_threadsafe(self.tts_queue.put(self.accumulated_text), self.loop)
                         self.accumulated_text = ""
@@ -243,7 +245,7 @@ class CustomEventHandler(openai.AssistantEventHandler):
 
 
 async def handle_speech():
-    global interaction_task, tts_task, stop_playback_event
+    global interaction_task, tts_task, stop_playback_event, playback_thread
 
     config = speech.RecognitionConfig(
         encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
@@ -260,6 +262,11 @@ async def handle_speech():
         async for response in async_responses(responses):
             for result in response.results:
                 if result.is_final:
+                    # Stop any ongoing audio playback immediately
+                    stop_playback_event.set()
+                    if playback_thread and playback_thread.is_alive():
+                        playback_thread.join()
+
                     if interaction_task:
                         interaction_task.cancel()
                         try:
@@ -272,11 +279,6 @@ async def handle_speech():
                             await tts_task
                         except asyncio.CancelledError:
                             print("Previous TTS task cancelled")
-
-                    # Stop any ongoing audio playback
-                    stop_playback_event.set()
-                    if playback_thread and playback_thread.is_alive():
-                        playback_thread.join()
 
                     input_text = result.alternatives[0].transcript
                     print(f"Recognized: {input_text}")
@@ -308,13 +310,13 @@ def ask_chatbot_sync(input_text, loop):
     )
 
     event_handler = CustomEventHandler(loop)
-    # 启动 TTS 队列处理任务
+    # start TTS queue task
     asyncio.run_coroutine_threadsafe(event_handler.process_tts_queue(), loop)
 
     with client_openai.beta.threads.runs.stream(
         thread_id=thread_id,
         assistant_id=assistant_id,
-        instructions="你扮演一个孩子的小伙伴，名字叫小小新，性格和善，说话活泼可爱，对孩子充满爱心，经常赞赏和鼓励孩子，用5岁孩子容易理解语言提供有趣和创新的回答，回答不要超过50字。",
+        instructions="用户名字叫小旭",
         event_handler=event_handler
     ) as stream:
         stream.until_done()
@@ -342,7 +344,6 @@ async def main():
 
         interaction_task = asyncio.create_task(handle_speech())
         await interaction_task
-
 
 
 if __name__ == "__main__":
